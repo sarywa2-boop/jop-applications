@@ -33,3 +33,5 @@ export default async function handler(req, res) {
   try { const query = typeof req.body?.query === 'string' && req.body.query.trim() ? req.body.query.trim() : 'administrative assistant OR content producer'; const results = await Promise.allSettled([searchAdzuna(query), searchGoogle(query), searchTavily(query)]); const warnings = results.filter(r => r.status === 'rejected').map(r => r.reason instanceof Error ? r.reason.message : 'Search source failed'); const jobs = await analyze(results.filter(r => r.status === 'fulfilled').flatMap(r => r.value)); return json(res, 200, { fetchedAt: new Date().toISOString(), jobs: jobs.filter(j => j.matchScore >= 60 || !process.env.OPENAI_API_KEY).slice(0, 20), sourceWarnings: warnings, requiresApprovalBeforeSend: true, maxDailyMessages: 20 }); } catch (error) { return json(res, 502, { error: error instanceof Error ? error.message : 'Amir search failed' }); }
 }
 
+
+
