@@ -8,6 +8,7 @@ export default async function handler(request, response) {
       openai: Boolean(process.env.OPENAI_API_KEY),
       adzuna: Boolean(process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY),
       googleSearch: Boolean(process.env.GOOGLE_CSE_KEY && process.env.GOOGLE_CSE_ID),
+      tavily: Boolean(process.env.TAVILY_API_KEY),
       gmail: Boolean(process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN)
     },
     policy: { dailyApprovalRequired: true, maxDailyMessages: 20, automaticSubmissionWithoutApproval: false }
