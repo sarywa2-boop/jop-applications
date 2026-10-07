@@ -30,8 +30,30 @@ async function analyze(jobs) {
 }
 export default async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
-  try { const query = typeof req.body?.query === 'string' && req.body.query.trim() ? req.body.query.trim() : 'administrative assistant OR content producer'; const results = await Promise.allSettled([searchAdzuna(query), searchGoogle(query), searchTavily(query)]); const warnings = results.filter(r => r.status === 'rejected').map(r => r.reason instanceof Error ? r.reason.message : 'Search source failed'); const jobs = await analyze(results.filter(r => r.status === 'fulfilled').flatMap(r => r.value)); return json(res, 200, { fetchedAt: new Date().toISOString(), jobs: jobs.filter(j => j.matchScore >= 60 || !process.env.OPENAI_API_KEY).slice(0, 20), sourceWarnings: warnings, requiresApprovalBeforeSend: true, maxDailyMessages: 20 }); } catch (error) { return json(res, 502, { error: error instanceof Error ? error.message : 'Amir search failed' }); }
+  try {
+    const query = typeof req.body?.query === 'string' && req.body.query.trim() ? req.body.query.trim() : 'administrative assistant OR content producer';
+    const results = await Promise.allSettled([searchAdzuna(query), searchGoogle(query), searchTavily(query)]);
+    const warnings = results.filter(result => result.status === 'rejected').map(result => result.reason instanceof Error ? result.reason.message : 'Search source failed');
+    const sourceJobs = results.filter(result => result.status === 'fulfilled').flatMap(result => result.value);
+    let jobs;
+    let analysisWarning = null;
+    try {
+      jobs = await analyze(sourceJobs);
+    } catch {
+      analysisWarning = 'OpenAI analysis unavailable';
+      jobs = sourceJobs.map(job => ({ ...job, ...track(job.title, job.description), matchScore: 0, reason: 'المطابقة الذكية غير متاحة مؤقتًا؛ راجع الإعلان يدويًا.', email: null }));
+    }
+    const uniqueJobs = [...new Map(jobs.filter(job => job.url).map(job => [job.url, job])).values()];
+    uniqueJobs.sort((first, second) => second.matchScore - first.matchScore);
+    return json(res, 200, {
+      fetchedAt: new Date().toISOString(),
+      jobs: uniqueJobs.filter(job => job.matchScore >= 60 || !process.env.OPENAI_API_KEY || analysisWarning).slice(0, 20),
+      sourceWarnings: warnings,
+      analysisWarning,
+      requiresApprovalBeforeSend: true,
+      maxDailyMessages: 20
+    });
+  } catch (error) {
+    return json(res, 502, { error: error instanceof Error ? error.message : 'Amir search failed' });
+  }
 }
-
-
-
