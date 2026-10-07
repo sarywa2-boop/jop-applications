@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 const json = (response, status, body) => response.status(status).json(body);
 const getText = (value) => typeof value === 'string' ? value.trim() : '';
 const normalize = (value) => getText(value).toLowerCase();
@@ -165,6 +167,42 @@ const analyzeWithOpenAI = async (jobs) => {
   });
 };
 
+const persistJobs = async (jobs, fetchedAt) => {
+  const supabaseUrl = getText(process.env.SUPABASE_URL).replace(/\/+$/, '');
+  const apiKey = getText(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  if (!supabaseUrl || !apiKey || jobs.length === 0) return false;
+
+  const rows = jobs.map((job) => ({
+    external_id: createHash('sha256').update(job.url).digest('hex'),
+    source: job.source,
+    title: job.title,
+    company: job.company || null,
+    location: job.location || null,
+    url: job.url,
+    description: job.description || null,
+    posted_at: job.postedAt || null,
+    fetched_at: fetchedAt,
+    track: job.track,
+    match_score: job.matchScore,
+    reason: job.reason
+  }));
+  const url = new URL(`${supabaseUrl}/rest/v1/jobs`);
+  url.searchParams.set('on_conflict', 'source,external_id');
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(12000),
+    method: 'POST',
+    headers: {
+      apikey: apiKey,
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'resolution=merge-duplicates,return=minimal'
+    },
+    body: JSON.stringify(rows)
+  });
+  if (!response.ok) throw new Error(`Supabase returned HTTP ${response.status}`);
+  return true;
+};
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -205,12 +243,25 @@ export default async function handler(request, response) {
       jobs.filter((job) => job.url).map((job) => [job.url, job])
     ).values()];
     uniqueJobs.sort((first, second) => second.matchScore - first.matchScore);
+    const fetchedAt = new Date().toISOString();
+    let persistenceWarning = null;
+    let persisted = false;
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        persisted = await persistJobs(uniqueJobs, fetchedAt);
+      } catch (error) {
+        console.error('Could not persist Amir search results', error);
+        persistenceWarning = 'تعذّر حفظ النتائج في قاعدة البيانات.';
+      }
+    }
     return json(response, 200, {
-      fetchedAt: new Date().toISOString(),
+      fetchedAt,
       jobs: uniqueJobs.slice(0, 20),
       sourceWarnings,
       analysisWarning,
       analysisMode: analysisWarning ? 'heuristic' : 'openai',
+      persisted,
+      persistenceWarning,
       requiresApprovalBeforeSend: true,
       maxDailyMessages: 20
     });
