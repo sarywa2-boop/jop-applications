@@ -2,6 +2,15 @@
   "functions": {
     "api/jobs.js": {
       "maxDuration": 10
+    },
+    "api/cron/jobs.js": {
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/jobs",
+      "schedule": "0 5 * * *"
+    }
+  ]
 }

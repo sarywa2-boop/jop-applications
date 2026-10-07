@@ -131,7 +131,7 @@ async function search({automatic=false}={}){
     localStorage.setItem(cacheKey,JSON.stringify({query,jobs,fetchedAt}));
     sync.textContent='متصل بالبحث';
     engineStatus.textContent='جاهز';
-    status.textContent=`آخر تحديث: ${new Date(fetchedAt).toLocaleString('ar-SA')} · ${jobs.length} فرصة. راجع كل إعلان وتأكد من ملاءمته قبل التقديم.`+(data.sourceWarnings?.length?' تعذّر بعض المصادر.':'')+(data.analysisWarning?' تعذّر التحليل الذكي؛ تظهر النتائج دون درجة مطابقة.':'');
+    status.textContent=`آخر تحديث: ${new Date(fetchedAt).toLocaleString('ar-SA')} · ${jobs.length} فرصة. راجع كل إعلان وتأكد من ملاءمته قبل التقديم.`+(data.persisted?' حُفظت النتائج سحابيًا.':'')+(data.persistenceWarning?` ${data.persistenceWarning}`:'')+(data.sourceWarnings?.length?' تعذّر بعض المصادر.':'')+(data.analysisWarning?` ${data.analysisWarning}`:'');
     return true;
   }catch(error){
     sync.textContent='غير متصل';
